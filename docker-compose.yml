@@ -1,0 +1,81 @@
+services:
+
+  postgis:
+    image: postgis/postgis:18-3.6
+    platform: linux/amd64
+    container_name: water-postgis
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_DB: waterdb
+      POSTGRES_USER: wateradmin
+      POSTGRES_PASSWORD: wateradm1n
+
+    ports:
+      - "5432:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql
+
+      # สำหรับสร้าง mcpg_reader ครั้งแรก
+      - ./init:/docker-entrypoint-initdb.d
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wateradmin -d waterdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+
+  mcpg:
+    image: water-mcpg-postgis:0.8.2-1
+    build:
+      context: ./mcpg
+    container_name: water-mcpg
+    restart: unless-stopped
+
+    depends_on:
+      postgis:
+        condition: service_healthy
+
+    environment:
+      MCPG_DATABASE_URL: "postgresql://mcpg_reader:passward4MCp@postgis:5432/waterdb"
+
+      # MCPg read-only
+      MCPG_ACCESS_MODE: "read-only"
+
+      # MCP HTTP
+      MCPG_TRANSPORT: "streamable-http"
+      MCPG_HTTP_HOST: "0.0.0.0"
+      MCPG_HTTP_PORT: "8000"
+      MCPG_ALLOW_INSECURE_TLS: "true"
+
+      # Local development
+      MCPG_HTTP_ALLOW_UNAUTHENTICATED: "true"
+
+      MCPG_STATEMENT_TIMEOUT_MS: "30000"
+      MCPG_LOCK_TIMEOUT_MS: "5000"
+
+    ports:
+      # Host 8087 -> MCPg container 8000
+      - "127.0.0.1:8087:8000"
+
+
+  adminer:
+    image: adminer:6.1.1
+    container_name: water-adminer
+    restart: unless-stopped
+
+    depends_on:
+      postgis:
+        condition: service_healthy
+
+    environment:
+      ADMINER_DEFAULT_SERVER: postgis
+
+    ports:
+      - "127.0.0.1:8085:8080"
+
+
+volumes:
+  postgres_data:
