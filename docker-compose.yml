@@ -1,10 +1,13 @@
 services:
 
   postgis:
-    image: postgis/postgis:18-3.6
+    image: water-postgis-timescaledb:18-3.6-2.30.2-1
+    build:
+      context: ./timescaledb
     platform: linux/amd64
     container_name: water-postgis
     restart: unless-stopped
+    command: ["postgres", "-c", "shared_preload_libraries=timescaledb"]
 
     environment:
       POSTGRES_DB: waterdb
